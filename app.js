@@ -3,7 +3,7 @@ import html2canvas from "https://esm.sh/html2canvas@1.4.1";
 import { jsPDF } from "https://esm.sh/jspdf@2.5.2";
 import { PDFDocument } from "https://esm.sh/pdf-lib@1.17.1";
 import * as XLSX from "https://esm.sh/xlsx@0.18.5";
-import { SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, APP_NAME } from "./config.js?v=11.0.27.6.4";
+import { SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, APP_NAME } from "./config.js?v=11.0.27.6.5";
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
   auth: {
@@ -15,7 +15,7 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
 
 const app = document.querySelector("#app");
 const toastRoot = document.querySelector("#toast-root");
-const APP_BUILD = "11.0.27.6.4";
+const APP_BUILD = "11.0.27.6.5";
 const OFFICIAL_PDF_FONT = "TH SarabunIT๙";
 const OFFICIAL_PDF_FONT_ALIAS = "THSarabunIT๙";
 async function ensureOfficialPdfFont(size="16pt") {
@@ -8485,7 +8485,7 @@ async function postLessonPreviewPdf(id){
 async function postLessonExportPdf(id){try{const {blob,filename}=await postLessonBuildPdfBlob(id);downloadBlob(blob,filename);}catch(err){console.error(err);toast("สร้าง PDF ไม่สำเร็จ",err.message||String(err),"error");}}
 
 
-// ===== Official Attendance / ระบบลงเวลาปฏิบัติราชการ (Build 11.0.27.6.4) =====
+// ===== Official Attendance / ระบบลงเวลาปฏิบัติราชการ (Build 11.0.27.6.5) =====
 const officialAttendanceSignatureCache = new Map();
 const ATTENDANCE_DUTY_LABEL = {official_duty:"ไปราชการ",training:"อบรม / สัมมนา",other:"ปฏิบัติหน้าที่อื่น"};
 const ATTENDANCE_MODE_LABEL = {gps:"GPS ปกติ",qr:"QR Code + GPS",face:"ยืนยันใบหน้า + GPS"};
@@ -8618,75 +8618,66 @@ async function officialAttendanceFaceDetect(video){const f=window.faceapi,opt=ne
 async function officialAttendanceWait(ms){return new Promise(r=>setTimeout(r,ms));}
 async function officialAttendanceFaceChallenge(video,statusEl){
   const started=Date.now(),baseline=[];
-  statusEl.textContent="มองตรงเข้ากล้อง ให้อยู่ในกรอบ…";
-  while(baseline.length<5&&Date.now()-started<12000){
+  statusEl.textContent="ขั้นที่ 1/4 · มองตรงเข้ากล้อง ให้อยู่ในกรอบ…";
+  while(baseline.length<5&&Date.now()-started<9000){
     const d=await officialAttendanceFaceDetect(video);
-    if(d){
-      const ear=(officialAttendanceFaceEyeRatio(d.landmarks.getLeftEye())+officialAttendanceFaceEyeRatio(d.landmarks.getRightEye()))/2;
-      if(Number.isFinite(ear)&&ear>0)baseline.push({ear,yaw:officialAttendanceFaceYaw(d.landmarks),descriptor:Array.from(d.descriptor)});
-    }
-    await officialAttendanceWait(220);
+    if(d)baseline.push({yaw:officialAttendanceFaceYaw(d.landmarks),descriptor:Array.from(d.descriptor)});
+    await officialAttendanceWait(180);
   }
   if(baseline.length<4)throw new Error("ตรวจจับใบหน้าไม่ชัด กรุณาอยู่ในที่สว่างและมองกล้องตรง ๆ");
-  const sortedEar=baseline.map(x=>x.ear).sort((a,b)=>a-b);
-  const baseEar=sortedEar[Math.floor(sortedEar.length/2)]||baseline.reduce((s,x)=>s+x.ear,0)/baseline.length;
   const baseYaw=baseline.reduce((s,x)=>s+x.yaw,0)/baseline.length;
 
-  // Primary liveness: deliberately close the eyes for a short moment and open again.
-  // This is intentionally slower and more tolerant than a fast blink because mobile cameras
-  // often miss the single closed-eye frame.
-  statusEl.textContent="ขั้นตรวจการมีชีวิต · หลับตาค้างประมาณครึ่งวินาที แล้วลืมตา";
-  let closedSince=0,eyePassed=false;
-  const eyeStart=Date.now();
-  while(!eyePassed&&Date.now()-eyeStart<10500){
+  // Liveness uses head movement only: first side -> opposite side -> center.
+  // We intentionally learn the sign of the first turn instead of assuming camera mirroring,
+  // so front/rear cameras and different browsers behave consistently.
+  let stage="first",firstSign=0,firstSeenAt=0,secondSeenAt=0,centerSeenAt=0;
+  statusEl.textContent="ขั้นที่ 2/4 · หันหน้าไปทางซ้ายช้า ๆ";
+  const moveStart=Date.now();
+  while(stage!=="done"&&Date.now()-moveStart<14000){
     const d=await officialAttendanceFaceDetect(video);
     if(d){
-      const ear=(officialAttendanceFaceEyeRatio(d.landmarks.getLeftEye())+officialAttendanceFaceEyeRatio(d.landmarks.getRightEye()))/2;
-      const closedThreshold=Math.max(baseEar*.82,0.12);
-      const openThreshold=Math.max(baseEar*.88,closedThreshold+.015);
-      if(ear>0&&ear<closedThreshold){
-        if(!closedSince)closedSince=Date.now();
-        if(Date.now()-closedSince>=320)statusEl.textContent="ตรวจพบว่าหลับตาแล้ว ✓ · ลืมตาได้เลย";
-      }else if(closedSince){
-        const heldMs=Date.now()-closedSince;
-        if(heldMs>=260&&ear>=openThreshold)eyePassed=true;
-        else if(heldMs<260)closedSince=0;
+      const delta=officialAttendanceFaceYaw(d.landmarks)-baseYaw;
+      const absDelta=Math.abs(delta);
+      if(stage==="first"){
+        if(absDelta>.065){
+          if(!firstSeenAt)firstSeenAt=Date.now();
+          if(Date.now()-firstSeenAt>=180){
+            firstSign=delta>=0?1:-1;
+            stage="second";
+            secondSeenAt=0;
+            statusEl.textContent="ขั้นที่ 3/4 · ดีมาก ✓ หันหน้าไปทางขวา";
+          }
+        }else firstSeenAt=0;
+      }else if(stage==="second"){
+        const opposite=firstSign!==0&&Math.sign(delta)===-firstSign&&absDelta>.065;
+        if(opposite){
+          if(!secondSeenAt)secondSeenAt=Date.now();
+          if(Date.now()-secondSeenAt>=180){
+            stage="center";
+            centerSeenAt=0;
+            statusEl.textContent="ขั้นที่ 4/4 · ดีมาก ✓ กลับมามองตรง";
+          }
+        }else secondSeenAt=0;
+      }else if(stage==="center"){
+        if(absDelta<.045){
+          if(!centerSeenAt)centerSeenAt=Date.now();
+          if(Date.now()-centerSeenAt>=220)stage="done";
+        }else centerSeenAt=0;
       }
     }
-    await officialAttendanceWait(150);
+    await officialAttendanceWait(140);
   }
+  if(stage!=="done")throw new Error("ยังยืนยันการมีชีวิตไม่สำเร็จ กรุณามองกล้อง แล้วหันซ้าย → หันขวา → กลับมามองตรงอีกครั้ง");
 
-  let fallbackUsed=false;
-  if(!eyePassed){
-    fallbackUsed=true;
-    statusEl.textContent="จับการหลับตาไม่ชัด · ใช้วิธีสำรอง: หันหน้าไปซ้ายหรือขวาช้า ๆ";
-    let moved=false,returned=false;
-    const moveStart=Date.now();
-    while(!returned&&Date.now()-moveStart<12000){
-      const d=await officialAttendanceFaceDetect(video);
-      if(d){
-        const delta=Math.abs(officialAttendanceFaceYaw(d.landmarks)-baseYaw);
-        if(!moved&&delta>.075){
-          moved=true;
-          statusEl.textContent="ตรวจพบการหันหน้าแล้ว ✓ · กลับมามองตรง";
-        }else if(moved&&delta<.055){
-          returned=true;
-        }
-      }
-      await officialAttendanceWait(160);
-    }
-    if(!returned)throw new Error("ยังยืนยันการมีชีวิตไม่สำเร็จ กรุณาอยู่ในที่สว่าง แล้วหลับตาช้า ๆ หรือหันหน้าเล็กน้อยอีกครั้ง");
-  }
-
-  statusEl.textContent=`ตรวจการมีชีวิตผ่าน ✓${fallbackUsed?" (ใช้การหันหน้า)":""} · กำลังเก็บข้อมูลใบหน้า…`;
+  statusEl.textContent="ตรวจการมีชีวิตผ่าน ✓ · กำลังเก็บข้อมูลใบหน้า…";
   const descriptors=[];const capStart=Date.now();
-  while(descriptors.length<3&&Date.now()-capStart<8000){
+  while(descriptors.length<3&&Date.now()-capStart<7000){
     const d=await officialAttendanceFaceDetect(video);
     if(d)descriptors.push(Array.from(d.descriptor));
-    await officialAttendanceWait(240);
+    await officialAttendanceWait(220);
   }
   if(descriptors.length<2)throw new Error("เก็บข้อมูลใบหน้าไม่ครบ กรุณามองตรงเข้ากล้องแล้วลองใหม่");
-  return {descriptor:officialAttendanceAverageDescriptors(descriptors),livenessScore:fallbackUsed?.92:1,sampleCount:descriptors.length,livenessMethod:fallbackUsed?"head_turn":"eyes_close_open"};
+  return {descriptor:officialAttendanceAverageDescriptors(descriptors),livenessScore:.96,sampleCount:descriptors.length,livenessMethod:"head_left_right_center"};
 }
 async function officialAttendanceOpenFaceCamera(video,facingMode="user",previousStream=null){
   if(!navigator.mediaDevices?.getUserMedia)throw new Error("อุปกรณ์นี้ไม่รองรับการเปิดกล้อง");
@@ -8735,19 +8726,19 @@ function officialAttendanceDescriptorDistance(a,b){if(!Array.isArray(a)||!Array.
 function officialAttendanceTestFaceModal(){
   if(!officialAttendanceTestCenterAvailable())return;
   const m=document.createElement("div");m.className="modal-backdrop";
-  m.innerHTML=`<div class="modal"><div class="modal-head"><div><h3>ทดสอบ Face Verification + GPS</h3><p>จำลอง “ลงทะเบียนใบหน้า → ยืนยันใบหน้า → ตรวจ GPS” ในครั้งเดียว</p></div><button class="modal-close">×</button></div><div class="attendance-face-modal"><div class="attendance-face-frame"><video id="attendance-test-face-video" autoplay playsinline muted></video><div class="attendance-face-oval"></div></div><div class="attendance-camera-toolbar attendance-face-camera-tools"><span class="attendance-camera-label" id="attendance-test-face-camera-label">📷 กล้องหน้า</span><button class="btn btn-ghost btn-sm" id="attendance-test-face-switch" type="button">🔄 สลับกล้องหน้า/หลัง</button></div><div class="attendance-face-status" id="attendance-test-face-status">กำลังเตรียมกล้องหน้า…</div><div class="attendance-face-privacy">การทดสอบนี้ไม่บันทึก Face Template, รูปภาพ, วิดีโอ หรือรายการลงเวลา เมื่อปิดหน้าต่างข้อมูลชั่วคราวจะถูกทิ้ง</div></div><div class="attendance-test-result" id="attendance-test-face-result"><strong>พร้อมทดสอบ</strong><span>ระบบจะให้หลับตาค้างแล้วลืมตา · หากจับดวงตาไม่ชัดจะใช้การหันหน้าเป็นวิธีสำรอง</span></div><div class="modal-actions"><button class="btn btn-ghost modal-cancel">ยกเลิก</button><button class="btn btn-primary" id="attendance-test-face-start">เริ่มทดสอบใบหน้า</button></div></div>`;
+  m.innerHTML=`<div class="modal"><div class="modal-head"><div><h3>ทดสอบ Face Verification + GPS</h3><p>จำลอง “ลงทะเบียนใบหน้า → ยืนยันใบหน้า → ตรวจ GPS” ในครั้งเดียว</p></div><button class="modal-close">×</button></div><div class="attendance-face-modal"><div class="attendance-face-frame"><video id="attendance-test-face-video" autoplay playsinline muted></video><div class="attendance-face-oval"></div></div><div class="attendance-camera-toolbar attendance-face-camera-tools"><span class="attendance-camera-label" id="attendance-test-face-camera-label">📷 กล้องหน้า</span><button class="btn btn-ghost btn-sm" id="attendance-test-face-switch" type="button">🔄 สลับกล้องหน้า/หลัง</button></div><div class="attendance-face-status" id="attendance-test-face-status">กำลังเตรียมกล้องหน้า…</div><div class="attendance-face-privacy">การทดสอบนี้ไม่บันทึก Face Template, รูปภาพ, วิดีโอ หรือรายการลงเวลา เมื่อปิดหน้าต่างข้อมูลชั่วคราวจะถูกทิ้ง</div></div><div class="attendance-test-result" id="attendance-test-face-result"><strong>พร้อมทดสอบ</strong><span>ระบบจะให้หันหน้าไปทางซ้าย → ขวา → กลับมามองตรง เพื่อยืนยันว่าเป็นบุคคลจริง</span></div><div class="modal-actions"><button class="btn btn-ghost modal-cancel">ยกเลิก</button><button class="btn btn-primary" id="attendance-test-face-start">เริ่มทดสอบใบหน้า</button></div></div>`;
   document.body.appendChild(m);
   const video=m.querySelector("#attendance-test-face-video"),status=m.querySelector("#attendance-test-face-status"),resultEl=m.querySelector("#attendance-test-face-result"),switchBtn=m.querySelector("#attendance-test-face-switch"),startBtn=m.querySelector("#attendance-test-face-start"),camera=officialAttendanceCreateFaceCameraController(video,m.querySelector("#attendance-test-face-camera-label"));
   let running=false,baseline=null,closed=false;
   const close=()=>{if(running)return toast("กำลังตรวจใบหน้า","รอให้ขั้นตอนปัจจุบันเสร็จ หรือลองใหม่เมื่อระบบหยุด","info");closed=true;camera.stop();baseline=null;m.remove();};
-  const ensurePreview=async()=>{try{await camera.open();if(!closed)status.textContent=`${officialAttendanceFaceCameraLabel(camera.stream,camera.facingMode)}พร้อมใช้งาน · จัดใบหน้าให้อยู่ในกรอบ`;}catch(err){if(!closed)status.textContent=`เปิดกล้องไม่สำเร็จ: ${err.message||String(err)}`;}};
+  const ensurePreview=async()=>{try{await camera.open();if(!closed)status.textContent=`${officialAttendanceFaceCameraLabel(camera.stream,camera.facingMode)}พร้อมใช้งาน · เตรียมหันหน้า ซ้าย → ขวา → มองตรง`;}catch(err){if(!closed)status.textContent=`เปิดกล้องไม่สำเร็จ: ${err.message||String(err)}`;}};
   m.querySelector(".modal-close").onclick=close;m.querySelector(".modal-cancel").onclick=close;
-  switchBtn.onclick=async()=>{if(running)return toast("กำลังตรวจใบหน้า","ไม่สามารถสลับกล้องระหว่างการตรวจได้","info");switchBtn.disabled=true;status.textContent="กำลังสลับกล้อง…";try{await camera.toggle();status.textContent=`${officialAttendanceFaceCameraLabel(camera.stream,camera.facingMode)}พร้อมใช้งาน · จัดใบหน้าให้อยู่ในกรอบ`;}catch(err){status.textContent=`สลับกล้องไม่สำเร็จ: ${err.message||String(err)}`;toast("สลับกล้องไม่สำเร็จ",err.message||String(err),"error");}finally{switchBtn.disabled=false;}};
+  switchBtn.onclick=async()=>{if(running)return toast("กำลังตรวจใบหน้า","ไม่สามารถสลับกล้องระหว่างการตรวจได้","info");switchBtn.disabled=true;status.textContent="กำลังสลับกล้อง…";try{await camera.toggle();status.textContent=`${officialAttendanceFaceCameraLabel(camera.stream,camera.facingMode)}พร้อมใช้งาน · เตรียมหันหน้า ซ้าย → ขวา → มองตรง`;}catch(err){status.textContent=`สลับกล้องไม่สำเร็จ: ${err.message||String(err)}`;toast("สลับกล้องไม่สำเร็จ",err.message||String(err),"error");}finally{switchBtn.disabled=false;}};
   startBtn.onclick=async e=>{running=true;switchBtn.disabled=true;buttonLoading(e.currentTarget,true,"กำลังเตรียมระบบ...");try{if(!camera.stream)await camera.open();await officialAttendanceEnsureFaceApi();status.textContent="รอบที่ 1/2 · จำลองลงทะเบียนใบหน้า";const enroll=await officialAttendanceFaceChallenge(video,status);baseline=enroll.descriptor;status.textContent="ลงทะเบียนชั่วคราวสำเร็จ ✓ · เตรียมยืนยันใบหน้าอีกครั้ง";await officialAttendanceWait(700);const verify=await officialAttendanceFaceChallenge(video,status);const distance=officialAttendanceDescriptorDistance(baseline,verify.descriptor),threshold=Number(state.officialAttendanceSettings?.face_match_threshold||.55);if(!Number.isFinite(distance)||distance>threshold)throw new Error(`ใบหน้าไม่ตรงกับตัวอย่างชั่วคราว (ระยะ ${Number(distance).toFixed(3)} / เกณฑ์ ${threshold.toFixed(2)})`);status.textContent="Face Verification ผ่าน ✓ · กำลังตรวจ GPS…";const gps=await officialAttendanceTestGps(resultEl);resultEl.innerHTML=`<strong>ทดสอบ Face + GPS ผ่านทั้งหมด ✓</strong><span>Face distance ${distance.toFixed(3)} · เกณฑ์ ${threshold.toFixed(2)} · ห่างโรงเรียน ${Math.round(gps.distance)} เมตร · GPS ±${Math.round(gps.accuracy)} เมตร</span><small>ไม่มีการบันทึก Face Template หรือเวลาเข้า</small>`;toast("ทดสอบสำเร็จ","Face Verification + GPS ผ่านครบทุกขั้นตอน และไม่ได้บันทึกเวลา","success");running=false;baseline=null;buttonLoading(e.currentTarget,false);switchBtn.disabled=false;}catch(err){resultEl.innerHTML=`<strong>การทดสอบยังไม่ผ่าน</strong><span>${escapeHtml(err.message||String(err))}</span>`;status.textContent=err.message||String(err);toast("ทดสอบไม่สำเร็จ",err.message||String(err),"error");running=false;baseline=null;buttonLoading(e.currentTarget,false);switchBtn.disabled=false;}};
   ensurePreview();
 }
 function officialAttendanceTestGpsModal(){if(!officialAttendanceTestCenterAvailable())return;const m=document.createElement("div");m.className="modal-backdrop";m.innerHTML=`<div class="modal"><div class="modal-head"><div><h3>ทดสอบ GPS</h3><p>ตรวจพิกัด รัศมี และความแม่นยำ โดยไม่บันทึกเวลา</p></div><button class="modal-close">×</button></div><div class="attendance-test-result" id="attendance-test-gps-result"><strong>พร้อมทดสอบ</strong><span>กดปุ่มด้านล่างเพื่ออ่านตำแหน่งปัจจุบัน</span></div><div class="modal-actions"><button class="btn btn-ghost modal-cancel">ปิด</button><button class="btn btn-primary" id="attendance-test-gps-start">ตรวจ GPS</button></div></div>`;document.body.appendChild(m);const close=()=>m.remove();m.querySelector(".modal-close").onclick=close;m.querySelector(".modal-cancel").onclick=close;m.querySelector("#attendance-test-gps-start").onclick=async e=>{buttonLoading(e.currentTarget,true,"กำลังอ่าน GPS...");const result=m.querySelector("#attendance-test-gps-result");try{const gps=await officialAttendanceTestGps(result);result.innerHTML=`<strong>GPS ผ่าน ✓</strong><span>ห่างจุดโรงเรียน ${Math.round(gps.distance)} เมตร · รัศมีที่อนุญาต ${Math.round(gps.radius)} เมตร · ความแม่นยำ ±${Math.round(gps.accuracy)} เมตร</span><small>ไม่บันทึกเวลาและไม่กระทบรายงาน</small>`;toast("ทดสอบ GPS ผ่าน","ตำแหน่งอยู่ในพื้นที่ที่กำหนด","success");}catch(err){result.innerHTML=`<strong>GPS ไม่ผ่าน</strong><span>${escapeHtml(err.message||String(err))}</span>`;toast("ทดสอบ GPS ไม่ผ่าน",err.message||String(err),"error");}finally{buttonLoading(e.currentTarget,false);}};}
-function officialAttendanceTestCenterModal(){if(!officialAttendanceTestCenterAvailable())return;const m=document.createElement("div");m.className="modal-backdrop";m.innerHTML=`<div class="modal modal-wide"><div class="modal-head"><div><h3>🧪 ศูนย์ทดสอบการลงเวลา</h3><p>ทดลองฟังก์ชันได้แม้วันนี้มีผู้ลงเวลาแล้ว โดยไม่เปลี่ยนโหมดจริงและไม่สร้างข้อมูลการลงเวลา</p></div><button class="modal-close">×</button></div><div class="attendance-test-banner"><strong>Safe Test Mode</strong><span>ข้อมูลจากหน้านี้ไม่เพิ่มลำดับการมา ไม่ขึ้น PDF ไม่เปลี่ยนสถิติ และไม่แก้รูปแบบการลงเวลาของวันนี้</span></div><div class="attendance-test-grid"><article class="attendance-test-card"><span class="attendance-test-icon">📍</span><h4>ทดสอบ GPS</h4><p>ตรวจพิกัดปัจจุบัน รัศมีโรงเรียน และความแม่นยำ GPS</p><button class="btn btn-secondary" id="attendance-test-gps">ทดสอบ GPS</button></article><article class="attendance-test-card"><span class="attendance-test-icon">▦</span><h4>ทดสอบ QR + GPS</h4><p>สร้าง QR ทดสอบที่มีโลโก้โรงเรียน แล้วสแกนด้วยกล้องหรือเลือกรูปจากเครื่อง ก่อนตรวจ GPS ต่อ</p><div class="attendance-test-card-actions"><button class="btn btn-secondary" id="attendance-test-qr-show">แสดง QR ทดสอบ</button><button class="btn btn-primary" id="attendance-test-qr-scan">สแกน QR ทดสอบ</button></div></article><article class="attendance-test-card"><span class="attendance-test-icon">🙂</span><h4>ทดสอบ Face + GPS</h4><p>จำลองลงทะเบียนใบหน้าชั่วคราว ยืนยันซ้ำด้วย Liveness แล้วตรวจ GPS</p><button class="btn btn-primary" id="attendance-test-face">ทดสอบ Face Verification</button></article></div><div class="attendance-test-footer-note">หมายเหตุ: Face Test ใช้ Template ชั่วคราวในหน่วยความจำของเบราว์เซอร์เท่านั้น จึงทดสอบได้แม้บัญชี Super Admin ซึ่งถูกยกเว้นจาก Workflow จริง</div><div class="modal-actions"><button class="btn btn-ghost modal-cancel">ปิดศูนย์ทดสอบ</button></div></div>`;document.body.appendChild(m);const close=()=>m.remove();m.querySelector(".modal-close").onclick=close;m.querySelector(".modal-cancel").onclick=close;m.querySelector("#attendance-test-gps").onclick=officialAttendanceTestGpsModal;m.querySelector("#attendance-test-qr-show").onclick=officialAttendanceTestQrDisplayModal;m.querySelector("#attendance-test-qr-scan").onclick=officialAttendanceTestQrScanModal;m.querySelector("#attendance-test-face").onclick=officialAttendanceTestFaceModal;}
+function officialAttendanceTestCenterModal(){if(!officialAttendanceTestCenterAvailable())return;const m=document.createElement("div");m.className="modal-backdrop";m.innerHTML=`<div class="modal modal-wide"><div class="modal-head"><div><h3>🧪 ศูนย์ทดสอบการลงเวลา</h3><p>ทดลองฟังก์ชันได้แม้วันนี้มีผู้ลงเวลาแล้ว โดยไม่เปลี่ยนโหมดจริงและไม่สร้างข้อมูลการลงเวลา</p></div><button class="modal-close">×</button></div><div class="attendance-test-banner"><strong>Safe Test Mode</strong><span>ข้อมูลจากหน้านี้ไม่เพิ่มลำดับการมา ไม่ขึ้น PDF ไม่เปลี่ยนสถิติ และไม่แก้รูปแบบการลงเวลาของวันนี้</span></div><div class="attendance-test-grid"><article class="attendance-test-card"><span class="attendance-test-icon">📍</span><h4>ทดสอบ GPS</h4><p>ตรวจพิกัดปัจจุบัน รัศมีโรงเรียน และความแม่นยำ GPS</p><button class="btn btn-secondary" id="attendance-test-gps">ทดสอบ GPS</button></article><article class="attendance-test-card"><span class="attendance-test-icon">▦</span><h4>ทดสอบ QR + GPS</h4><p>สร้าง QR ทดสอบที่มีโลโก้โรงเรียน แล้วสแกนด้วยกล้องหรือเลือกรูปจากเครื่อง ก่อนตรวจ GPS ต่อ</p><div class="attendance-test-card-actions"><button class="btn btn-secondary" id="attendance-test-qr-show">แสดง QR ทดสอบ</button><button class="btn btn-primary" id="attendance-test-qr-scan">สแกน QR ทดสอบ</button></div></article><article class="attendance-test-card"><span class="attendance-test-icon">🙂</span><h4>ทดสอบ Face + GPS</h4><p>จำลองลงทะเบียนใบหน้าชั่วคราว ยืนยันด้วยการหันซ้าย–ขวา แล้วตรวจ GPS</p><button class="btn btn-primary" id="attendance-test-face">ทดสอบ Face Verification</button></article></div><div class="attendance-test-footer-note">หมายเหตุ: Face Test ใช้ Template ชั่วคราวในหน่วยความจำของเบราว์เซอร์เท่านั้น จึงทดสอบได้แม้บัญชี Super Admin ซึ่งถูกยกเว้นจาก Workflow จริง</div><div class="modal-actions"><button class="btn btn-ghost modal-cancel">ปิดศูนย์ทดสอบ</button></div></div>`;document.body.appendChild(m);const close=()=>m.remove();m.querySelector(".modal-close").onclick=close;m.querySelector(".modal-cancel").onclick=close;m.querySelector("#attendance-test-gps").onclick=officialAttendanceTestGpsModal;m.querySelector("#attendance-test-qr-show").onclick=officialAttendanceTestQrDisplayModal;m.querySelector("#attendance-test-qr-scan").onclick=officialAttendanceTestQrScanModal;m.querySelector("#attendance-test-face").onclick=officialAttendanceTestFaceModal;}
 function officialAttendanceFaceRegistrationModal(){
   if(isSuperAdminUser())return toast("บัญชีผู้ดูแลระบบไม่ต้องลงทะเบียนใบหน้า","Super Admin ไม่อยู่ใน Workflow การลงเวลา","info");
   const m=document.createElement("div");m.className="modal-backdrop";
@@ -8756,23 +8747,23 @@ function officialAttendanceFaceRegistrationModal(){
   const video=m.querySelector("#attendance-face-video"),status=m.querySelector("#attendance-face-status"),switchBtn=m.querySelector("#attendance-face-camera-switch"),camera=officialAttendanceCreateFaceCameraController(video,m.querySelector("#attendance-face-camera-label"));
   let running=false,closed=false;
   const close=()=>{if(running)return toast("กำลังลงทะเบียนใบหน้า","กรุณารอให้ขั้นตอนปัจจุบันเสร็จ","info");closed=true;camera.stop();m.remove();};
-  const ensurePreview=async()=>{try{await camera.open();if(!closed)status.textContent=`${officialAttendanceFaceCameraLabel(camera.stream,camera.facingMode)}พร้อมใช้งาน · ระบบจะให้หลับตาค้างแล้วลืมตา · ถ้าจับตาไม่ชัดจะให้หันหน้าแทน`;}catch(err){if(!closed)status.textContent=`เปิดกล้องไม่สำเร็จ: ${err.message||String(err)}`;}};
+  const ensurePreview=async()=>{try{await camera.open();if(!closed)status.textContent=`${officialAttendanceFaceCameraLabel(camera.stream,camera.facingMode)}พร้อมใช้งาน · เตรียมหันหน้า ซ้าย → ขวา → มองตรง`;}catch(err){if(!closed)status.textContent=`เปิดกล้องไม่สำเร็จ: ${err.message||String(err)}`;}};
   m.querySelector(".modal-close").onclick=close;m.querySelector(".modal-cancel").onclick=close;
-  switchBtn.onclick=async()=>{if(running)return toast("กำลังตรวจใบหน้า","ไม่สามารถสลับกล้องระหว่างการตรวจได้","info");switchBtn.disabled=true;status.textContent="กำลังสลับกล้อง…";try{await camera.toggle();status.textContent=`${officialAttendanceFaceCameraLabel(camera.stream,camera.facingMode)}พร้อมใช้งาน · จัดใบหน้าให้อยู่ในกรอบ`;}catch(err){status.textContent=`สลับกล้องไม่สำเร็จ: ${err.message||String(err)}`;toast("สลับกล้องไม่สำเร็จ",err.message||String(err),"error");}finally{switchBtn.disabled=false;}};
+  switchBtn.onclick=async()=>{if(running)return toast("กำลังตรวจใบหน้า","ไม่สามารถสลับกล้องระหว่างการตรวจได้","info");switchBtn.disabled=true;status.textContent="กำลังสลับกล้อง…";try{await camera.toggle();status.textContent=`${officialAttendanceFaceCameraLabel(camera.stream,camera.facingMode)}พร้อมใช้งาน · เตรียมหันหน้า ซ้าย → ขวา → มองตรง`;}catch(err){status.textContent=`สลับกล้องไม่สำเร็จ: ${err.message||String(err)}`;toast("สลับกล้องไม่สำเร็จ",err.message||String(err),"error");}finally{switchBtn.disabled=false;}};
   m.querySelector("#attendance-face-register-start").onclick=async e=>{if(!m.querySelector("#attendance-face-consent").checked)return toast("กรุณายืนยันความยินยอม","ต้องยินยอมก่อนลงทะเบียนข้อมูลชีวมิติ","error");running=true;switchBtn.disabled=true;buttonLoading(e.currentTarget,true,"กำลังเตรียมระบบ...");try{if(!camera.stream)await camera.open();await officialAttendanceEnsureFaceApi();const result=await officialAttendanceFaceChallenge(video,status);const {error}=await supabase.rpc("register_my_official_attendance_face",{p_descriptor:result.descriptor,p_model_version:ATTENDANCE_FACE_MODEL_VERSION,p_sample_count:result.sampleCount,p_consent:true});if(error)throw error;toast("ลงทะเบียนใบหน้าสำเร็จ","พร้อมใช้โหมดยืนยันใบหน้า + GPS","success");running=false;camera.stop();m.remove();await loadOfficialAttendanceWorkspace();await renderDashboard();}catch(err){status.textContent=err.message||String(err);toast("ลงทะเบียนไม่สำเร็จ",err.message||String(err),"error");running=false;buttonLoading(e.currentTarget,false);switchBtn.disabled=false;}};
   ensurePreview();
 }
 function officialAttendanceFaceCheckInModal(){
   if(!state.officialAttendanceFaceStatus?.registered)return officialAttendanceFaceRegistrationModal();
   const m=document.createElement("div");m.className="modal-backdrop";
-  m.innerHTML=`<div class="modal"><div class="modal-head"><div><h3>ยืนยันใบหน้าเพื่อลงเวลา</h3><p>ผ่านการยืนยันใบหน้าแล้ว ระบบจะตรวจ GPS ต่ออัตโนมัติ</p></div><button class="modal-close">×</button></div><div class="attendance-face-modal"><div class="attendance-face-frame"><video id="attendance-face-video" autoplay playsinline muted></video><div class="attendance-face-oval"></div></div><div class="attendance-camera-toolbar attendance-face-camera-tools"><span class="attendance-camera-label" id="attendance-face-camera-label">📷 กล้องหน้า</span><button class="btn btn-ghost btn-sm" id="attendance-face-camera-switch" type="button">🔄 สลับกล้องหน้า/หลัง</button></div><div class="attendance-face-status" id="attendance-face-status">กำลังเตรียมกล้องหน้า…</div><div class="attendance-face-privacy">การตรวจ Liveness เป็นการตรวจเบื้องต้นแบบ “หลับตา → ลืมตา” และใช้การหันหน้าเป็นวิธีสำรอง ไม่ใช่ระบบชีวมิติระดับธนาคาร</div></div><div class="modal-actions"><button class="btn btn-ghost modal-cancel">ยกเลิก</button><button class="btn btn-primary" id="attendance-face-check-start">เริ่มยืนยันใบหน้า</button></div></div>`;
+  m.innerHTML=`<div class="modal"><div class="modal-head"><div><h3>ยืนยันใบหน้าเพื่อลงเวลา</h3><p>ผ่านการยืนยันใบหน้าแล้ว ระบบจะตรวจ GPS ต่ออัตโนมัติ</p></div><button class="modal-close">×</button></div><div class="attendance-face-modal"><div class="attendance-face-frame"><video id="attendance-face-video" autoplay playsinline muted></video><div class="attendance-face-oval"></div></div><div class="attendance-camera-toolbar attendance-face-camera-tools"><span class="attendance-camera-label" id="attendance-face-camera-label">📷 กล้องหน้า</span><button class="btn btn-ghost btn-sm" id="attendance-face-camera-switch" type="button">🔄 สลับกล้องหน้า/หลัง</button></div><div class="attendance-face-status" id="attendance-face-status">กำลังเตรียมกล้องหน้า…</div><div class="attendance-face-privacy">การตรวจ Liveness ใช้การหันหน้า “ซ้าย → ขวา → มองตรง” เพื่อยืนยันว่าเป็นบุคคลจริงเบื้องต้น ไม่ใช่ระบบชีวมิติระดับธนาคาร</div></div><div class="modal-actions"><button class="btn btn-ghost modal-cancel">ยกเลิก</button><button class="btn btn-primary" id="attendance-face-check-start">เริ่มยืนยันใบหน้า</button></div></div>`;
   document.body.appendChild(m);
   const video=m.querySelector("#attendance-face-video"),status=m.querySelector("#attendance-face-status"),switchBtn=m.querySelector("#attendance-face-camera-switch"),camera=officialAttendanceCreateFaceCameraController(video,m.querySelector("#attendance-face-camera-label"));
   let running=false,closed=false;
   const close=()=>{if(running)return toast("กำลังยืนยันใบหน้า","กรุณารอให้ขั้นตอนปัจจุบันเสร็จ","info");closed=true;camera.stop();m.remove();};
-  const ensurePreview=async()=>{try{await camera.open();if(!closed)status.textContent=`${officialAttendanceFaceCameraLabel(camera.stream,camera.facingMode)}พร้อมใช้งาน · จัดใบหน้าให้อยู่ในกรอบ`;}catch(err){if(!closed)status.textContent=`เปิดกล้องไม่สำเร็จ: ${err.message||String(err)}`;}};
+  const ensurePreview=async()=>{try{await camera.open();if(!closed)status.textContent=`${officialAttendanceFaceCameraLabel(camera.stream,camera.facingMode)}พร้อมใช้งาน · เตรียมหันหน้า ซ้าย → ขวา → มองตรง`;}catch(err){if(!closed)status.textContent=`เปิดกล้องไม่สำเร็จ: ${err.message||String(err)}`;}};
   m.querySelector(".modal-close").onclick=close;m.querySelector(".modal-cancel").onclick=close;
-  switchBtn.onclick=async()=>{if(running)return toast("กำลังตรวจใบหน้า","ไม่สามารถสลับกล้องระหว่างการตรวจได้","info");switchBtn.disabled=true;status.textContent="กำลังสลับกล้อง…";try{await camera.toggle();status.textContent=`${officialAttendanceFaceCameraLabel(camera.stream,camera.facingMode)}พร้อมใช้งาน · จัดใบหน้าให้อยู่ในกรอบ`;}catch(err){status.textContent=`สลับกล้องไม่สำเร็จ: ${err.message||String(err)}`;toast("สลับกล้องไม่สำเร็จ",err.message||String(err),"error");}finally{switchBtn.disabled=false;}};
+  switchBtn.onclick=async()=>{if(running)return toast("กำลังตรวจใบหน้า","ไม่สามารถสลับกล้องระหว่างการตรวจได้","info");switchBtn.disabled=true;status.textContent="กำลังสลับกล้อง…";try{await camera.toggle();status.textContent=`${officialAttendanceFaceCameraLabel(camera.stream,camera.facingMode)}พร้อมใช้งาน · เตรียมหันหน้า ซ้าย → ขวา → มองตรง`;}catch(err){status.textContent=`สลับกล้องไม่สำเร็จ: ${err.message||String(err)}`;toast("สลับกล้องไม่สำเร็จ",err.message||String(err),"error");}finally{switchBtn.disabled=false;}};
   m.querySelector("#attendance-face-check-start").onclick=async e=>{running=true;switchBtn.disabled=true;buttonLoading(e.currentTarget,true,"กำลังเตรียมระบบ...");try{if(!camera.stream)await camera.open();await officialAttendanceEnsureFaceApi();const result=await officialAttendanceFaceChallenge(video,status);status.textContent="ใบหน้าผ่านการตรวจเบื้องต้น ✓ · กำลังตรวจ GPS…";await officialAttendanceSubmitCheckIn("face",{descriptor:result.descriptor,livenessScore:result.livenessScore});running=false;camera.stop();m.remove();}catch(err){status.textContent=err.message||String(err);toast("ยืนยันใบหน้าไม่สำเร็จ",err.message||String(err),"error");running=false;buttonLoading(e.currentTarget,false);switchBtn.disabled=false;}};
   ensurePreview();
 }

@@ -3846,3 +3846,20 @@ body{
 .nav-child[data-view="module:official_attendance"]{position:relative!important;z-index:4!important;pointer-events:auto!important;touch-action:manipulation!important;}
 .attendance-load-error{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:14px;padding:12px 14px;border:1px solid #fecaca;border-radius:14px;background:#fff7f7;color:#991b1b;}
 .attendance-load-error strong{font-size:13px}.attendance-load-error span{font-size:11px;flex:1;min-width:220px;}
+
+
+/* BNK v11.0.27.6.5 — Attendance green-gold hero + head-turn liveness */
+.attendance-hero{
+  position:relative;overflow:hidden;color:#fff;
+  border-color:rgba(255,255,255,.16);
+  background:linear-gradient(125deg,#075a42 0%,#1f653c 58%,#8d7210 100%);
+  box-shadow:0 18px 44px rgba(15,78,58,.18);
+}
+.attendance-hero::after{content:"";position:absolute;right:-70px;top:-95px;width:260px;height:260px;border-radius:50%;background:rgba(255,255,255,.08);pointer-events:none}
+.attendance-hero>div{position:relative;z-index:1}
+.attendance-hero h2{color:#fff}
+.attendance-hero p{color:rgba(255,255,255,.84)}
+.attendance-hero .eyebrow.dark{background:rgba(255,255,255,.12);border-color:rgba(255,255,255,.2);color:#f7e9be}
+.attendance-hero-side strong{color:#fff}
+.attendance-hero-side small{color:rgba(255,255,255,.76)}
+.attendance-hero-side .pill{box-shadow:0 4px 14px rgba(0,0,0,.08)}
