@@ -1,0 +1,33 @@
+--- /mnt/data/_v11019baseline/BNK-School-OS-v11.0.18.1-classroom-research-hotfix/styles.css	2026-09-19 08:26:37.000000000 +0000
++++ /mnt/data/_v11019src/BNK-School-OS-v11.0.19-learner-development/styles.css	2026-09-19 09:08:00.730198263 +0000
+@@ -3705,3 +3705,30 @@
+ .research-version-list{display:grid;gap:10px;max-height:62vh;overflow:auto}.research-version-row{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:13px 14px;border:1px solid #e2e8f0;border-radius:14px;background:#fff}.research-version-row>div{display:flex;flex-direction:column;gap:3px;min-width:0}.research-version-row span{font-size:12px;color:#64748b;overflow-wrap:anywhere}
+ @media(max-width:640px){.research-version-row{align-items:flex-start;flex-direction:column}.research-version-row .btn{width:100%}}
+ .classroom-research-card .lesson-usage-progress span.rejected{background:#fee2e2;color:#991b1b}
++
++/* ===== System 5: Learner Development Activity Assessment (v11.0.19) ===== */
++.la-hero{background:linear-gradient(135deg,rgba(255,255,255,.96),rgba(247,249,255,.98))}
++.la-progress{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
++.la-progress span{font-size:.78rem;border:1px solid var(--border);border-radius:999px;padding:5px 9px;background:var(--surface-2)}
++.la-progress span.done{border-color:rgba(16,122,87,.28);background:rgba(16,122,87,.08)}
++.la-progress span.warn{border-color:rgba(190,119,0,.28);background:rgba(190,119,0,.08)}
++.la-activity-config{border:1px solid var(--border);border-radius:16px;padding:16px;margin:12px 0;background:var(--surface-2)}
++.la-config-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px}
++.la-result-tabs{display:flex;gap:8px;overflow-x:auto;padding:0 0 12px}
++.la-result-tools{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin:0 0 12px}
++.la-result-tools>div:first-child{display:flex;flex-direction:column;gap:4px}
++.la-result-tools>div:last-child{display:flex;flex-wrap:wrap;gap:6px;justify-content:flex-end}
++.la-result-wrap{max-height:66vh;overflow:auto;border:1px solid var(--border);border-radius:14px}
++.la-result-table{border-collapse:separate;border-spacing:0;min-width:max-content;margin:0}
++.la-result-table th{position:sticky;top:0;z-index:3;background:var(--surface);white-space:nowrap}
++.la-result-table td,.la-result-table th{padding:6px 7px;text-align:center}
++.la-result-table .la-name-col{position:sticky;left:0;z-index:2;min-width:190px;max-width:250px;text-align:left;background:var(--surface)}
++.la-result-table th.la-name-col{z-index:4}
++.la-result-table .la-session-col{min-width:34px;width:34px}
++.la-result-table input[type="checkbox"]{width:17px;height:17px}
++.check-line.compact{display:inline-flex;align-items:center;gap:5px;white-space:nowrap}
++.select.compact{min-width:92px;padding:6px 8px}
++.input.compact{min-width:120px;padding:6px 8px}
++.la-submit-check{border:1px solid var(--border);border-radius:14px;padding:14px;background:var(--surface-2)}
++.la-submit-check p{margin:6px 0}
++@media(max-width:780px){.la-result-tools{flex-direction:column}.la-result-tools>div:last-child{justify-content:flex-start}.la-result-table .la-name-col{min-width:150px}}

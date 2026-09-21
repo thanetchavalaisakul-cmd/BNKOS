@@ -1,0 +1,19 @@
+--- /mnt/data/_v11019baseline/BNK-School-OS-v11.0.18.1-classroom-research-hotfix/index.html	2026-09-19 08:46:14.000000000 +0000
++++ /mnt/data/_v11019src/BNK-School-OS-v11.0.19-learner-development/index.html	2026-09-19 09:08:01.160248625 +0000
+@@ -12,7 +12,7 @@
+   <link rel="preconnect" href="https://fonts.googleapis.com">
+   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+   <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Thai:wght@400;500;600;700&family=Sarabun:wght@400;700&display=swap" rel="stylesheet">
+-  <link rel="stylesheet" href="./styles.css?v=11.0.18.1" />
++  <link rel="stylesheet" href="./styles.css?v=11.0.19" />
+ </head>
+ <body>
+   <div id="app" class="app-shell" aria-live="polite">
+@@ -21,6 +21,6 @@
+     </main>
+   </div>
+   <div id="toast-root" class="toast-root" aria-live="assertive"></div>
+-  <script type="module" src="./app.js?v=11.0.18.1"></script>
++  <script type="module" src="./app.js?v=11.0.19"></script>
+ </body>
+ </html>
