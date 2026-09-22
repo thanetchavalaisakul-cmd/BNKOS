@@ -1431,15 +1431,31 @@ a { color: inherit; text-decoration: none; }
 /* BNK V10.7.2 — Academic Calendar export font */
 @font-face{
   font-family:"TH SarabunIT๙";
-  src:local("TH SarabunIT๙"),local("THSarabunIT๙");
+  src:url("https://raw.githubusercontent.com/mhc9/react-mhc9-erp/d8a9ae3dc05f58fbd6889eb9803e231f36abf03e/public/fonts/THSarabunIT%E0%B9%99.ttf") format("truetype");
   font-style:normal;
   font-weight:400;
+  font-display:block;
 }
 @font-face{
   font-family:"TH SarabunIT๙";
-  src:local("TH SarabunIT๙"),local("THSarabunIT๙");
+  src:url("https://raw.githubusercontent.com/mhc9/react-mhc9-erp/d8a9ae3dc05f58fbd6889eb9803e231f36abf03e/public/fonts/THSarabunIT%E0%B9%99%20Bold.ttf") format("truetype");
   font-style:normal;
   font-weight:700;
+  font-display:block;
+}
+@font-face{
+  font-family:"TH SarabunIT๙";
+  src:url("https://raw.githubusercontent.com/mhc9/react-mhc9-erp/d8a9ae3dc05f58fbd6889eb9803e231f36abf03e/public/fonts/THSarabunIT%E0%B9%99%20Italic.ttf") format("truetype");
+  font-style:italic;
+  font-weight:400;
+  font-display:block;
+}
+@font-face{
+  font-family:"TH SarabunIT๙";
+  src:url("https://raw.githubusercontent.com/mhc9/react-mhc9-erp/d8a9ae3dc05f58fbd6889eb9803e231f36abf03e/public/fonts/THSarabunIT%E0%B9%99%20BoldItalic.ttf") format("truetype");
+  font-style:italic;
+  font-weight:700;
+  font-display:block;
 }
 
 .academic-calendar-shell{display:grid;gap:16px}
@@ -3863,3 +3879,21 @@ body{
 .attendance-hero-side strong{color:#fff}
 .attendance-hero-side small{color:rgba(255,255,255,.76)}
 .attendance-hero-side .pill{box-shadow:0 4px 14px rgba(0,0,0,.08)}
+
+/* ===== Academic registration refinements · Build 11.0.27.6.8 ===== */
+.academic-document-service-detail-modal{width:min(1080px,calc(100vw - 30px));max-height:94vh;overflow:auto}
+.academic-document-service-detail-modal .academic-transfer-detail{box-shadow:none;border:0;padding:0;margin:0}
+.academic-document-service-detail-modal-body{min-width:0}
+.academic-transfer-official-number-status{display:grid;gap:2px;margin-top:8px;padding-top:8px;border-top:1px dashed #d8e2da}
+.academic-transfer-official-number-status strong{font-size:12.5px;color:#173c2c;text-transform:none;letter-spacing:0}
+.academic-transfer-official-number-status small{font-size:9.5px;color:#64748b}
+.academic-transfer-number-modal{width:min(720px,calc(100vw - 30px));max-height:92vh;overflow:auto}
+.academic-transfer-number-input{display:grid;grid-template-columns:auto minmax(0,1fr);align-items:center;gap:8px}
+.academic-transfer-number-input>span{display:flex;align-items:center;justify-content:center;min-height:42px;padding:0 14px;border:1px solid #cbd8ce;border-radius:12px;background:#f4f8f5;font-weight:800;color:#173c2c;white-space:nowrap}
+.academic-transfer-number-history{display:grid;gap:8px}
+.academic-transfer-number-history-row{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;padding:10px 12px;border:1px solid #e0e8e2;border-radius:12px;background:#fbfdfb}
+.academic-transfer-number-history-row>div{display:grid;gap:2px}
+.academic-transfer-number-history-row strong{font-size:12px;color:#173c2c}
+.academic-transfer-number-history-row span,.academic-transfer-number-history-row small{font-size:9.5px;color:#64748b}
+.academic-transfer-number-history-empty{padding:12px;border:1px dashed #d8e2da;border-radius:12px;color:#64748b;text-align:center;font-size:10.5px}
+@media(max-width:620px){.academic-transfer-number-history-row{flex-direction:column}.academic-transfer-number-input{grid-template-columns:auto minmax(0,1fr)}}
